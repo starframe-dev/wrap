@@ -1,11 +1,9 @@
 package warp
 
 import (
-    "fmt"
     "strings"
 
     tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/lipgloss"
 )
 
 // TabPosition defines where the tab bar is rendered.
@@ -24,24 +22,20 @@ type Tab struct {
     root    *Node
     focused Panel
     floats  []*FloatPane
-    warp    *Warp
+    parent  *TabGroup
 
     // Drag state
     dragging     *SplitConfig
     flexDragging *FlexConfig
     flexDragIdx  int // index of the border being dragged in flex
     lastBorders  []BorderHit
-
-    // For mouse hit testing
-    hasTabBar  bool
-    tabBarSize int // Width (for left/right) or Height (for top/bottom)
 }
 
-func newTab(name string, w *Warp) *Tab {
+func newTab(name string, parent *TabGroup) *Tab {
     return &Tab{
-        name: name,
-        root: &Node{Panel: &emptyPanel{}},
-        warp: w,
+        name:   name,
+        root:   &Node{Panel: &emptyPanel{}},
+        parent: parent,
     }
 }
 
@@ -207,7 +201,8 @@ func (t *Tab) renderContent(w, h int) string {
 
 // handleMouse processes mouse events for this tab.
 // offsetX, offsetY account for tab bar position.
-func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY int) tea.Cmd {
+// cw, ch are the content area dimensions.
+func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cmd {
     mx := msg.X - offsetX
     my := msg.Y - offsetY
 
@@ -249,8 +244,6 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY int) tea.Cmd {
                 }
             }
             // Click on a panel — focus it, toggle collapsible
-            cw := t.warp.contentWidth()
-            ch := t.warp.contentHeight()
             if hit := t.panelAt(mx, my, cw, ch); hit != nil {
                 t.focused = hit.Node.Panel
                 // Toggle collapsible on title bar click
@@ -264,7 +257,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY int) tea.Cmd {
             }
         case tea.MouseActionMotion:
             if t.dragging != nil || t.flexDragging != nil {
-                t.updateDrag(mx, my)
+                t.updateDrag(mx, my, cw, ch)
             }
         case tea.MouseActionRelease:
             if t.dragging != nil {
@@ -281,8 +274,6 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY int) tea.Cmd {
 
     // Forward mouse to panel under cursor (relative coordinates)
     if msg.Action == tea.MouseActionPress || msg.Action == tea.MouseActionMotion {
-        cw := t.warp.contentWidth()
-        ch := t.warp.contentHeight()
         if hit := t.panelAt(mx, my, cw, ch); hit != nil && hit.Node.Panel != nil {
             relMsg := tea.MouseMsg{
                 X:      mx - hit.X,
@@ -493,30 +484,28 @@ func (t *Tab) toggleCollapsibleNode(node *Node, panel Panel) bool {
     return false
 }
 
-func (t *Tab) updateDrag(mx, my int) {
+func (t *Tab) updateDrag(mx, my, cw, ch int) {
     if t.dragging != nil {
-        t.updateSplitDrag(mx, my)
+        t.updateSplitDrag(mx, my, cw, ch)
         return
     }
     if t.flexDragging != nil {
-        t.updateFlexDrag(mx, my)
+        t.updateFlexDrag(mx, my, cw, ch)
     }
 }
 
-func (t *Tab) updateSplitDrag(mx, my int) {
+func (t *Tab) updateSplitDrag(mx, my, cw, ch int) {
     for _, bh := range t.lastBorders {
         if bh.Split == t.dragging {
             switch bh.Direction {
             case Vertical:
-                totalW := t.warp.contentWidth()
-                if totalW > 0 {
-                    frac := float64(mx) / float64(totalW)
+                if cw > 0 {
+                    frac := float64(mx) / float64(cw)
                     t.dragging.Fraction = clampFraction(frac)
                 }
             case Horizontal:
-                totalH := t.warp.contentHeight()
-                if totalH > 0 {
-                    frac := float64(my) / float64(totalH)
+                if ch > 0 {
+                    frac := float64(my) / float64(ch)
                     t.dragging.Fraction = clampFraction(frac)
                 }
             }
@@ -525,13 +514,10 @@ func (t *Tab) updateSplitDrag(mx, my int) {
     }
 }
 
-func (t *Tab) updateFlexDrag(mx, my int) {
+func (t *Tab) updateFlexDrag(mx, my, cw, ch int) {
     if t.flexDragIdx < 0 || t.flexDragIdx >= len(t.flexDragging.Items)-1 {
         return
     }
-
-    cw := t.warp.contentWidth()
-    ch := t.warp.contentHeight()
 
     switch t.flexDragging.Direction {
     case Horizontal:
@@ -660,133 +646,6 @@ func clampFraction(f float64) float64 {
         return 0.9
     }
     return f
-}
-
-// --- Tab Bar Rendering ---
-
-func (w *Warp) renderTabBar(width int) string {
-    if w.tabPosition == TabLeft || w.tabPosition == TabRight {
-        return w.renderVerticalTabBar(width)
-    }
-
-    return w.renderHorizontalTabBar(width)
-}
-
-func (w *Warp) renderHorizontalTabBar(width int) string {
-    w.tabRegions = nil
-    activeIdx := w.activeTab
-
-    // Compute max label width so all tabs have consistent width
-    maxLabelW := 0
-    for _, tab := range w.tabs {
-        name := tab.name
-        if len(name) > 20 {
-            name = name[:17] + "..."
-        }
-        activeLabel := fmt.Sprintf("▎ %s ×", name)
-        labelW := lipgloss.Width(activeLabel)
-        if labelW > maxLabelW {
-            maxLabelW = labelW
-        }
-    }
-
-    var parts []string
-    col := 0
-    for i, tab := range w.tabs {
-        name := tab.name
-        if len(name) > 20 {
-            name = name[:17] + "..."
-        }
-        var label string
-        if i == activeIdx {
-            label = fmt.Sprintf("▎ %s ×", name)
-        } else {
-            label = fmt.Sprintf(" %s ", name)
-            label = padRight(label, maxLabelW)
-        }
-
-        labelW := lipgloss.Width(label)
-        endX := col + labelW
-        closeX := -1
-        if i == activeIdx {
-            closeX = endX - 1
-        }
-        w.tabRegions = append(w.tabRegions, tabRegion{
-            idx: i, startX: col, endX: endX, closeX: closeX,
-        })
-        col += labelW
-
-        style := inactiveTabStyle
-        if i == activeIdx {
-            style = activeTabStyle
-        }
-        parts = append(parts, style.Render(label))
-    }
-
-    newLabel := " + "
-    newW := lipgloss.Width(newLabel)
-    w.newTabRegion = &tabRegion{startX: col, endX: col + newW}
-    col += newW
-    parts = append(parts, newTabStyle.Render(newLabel))
-
-    bar := tabBarStyle.Render(strings.Join(parts, ""))
-    if padding := width - col; padding > 0 {
-        bar += tabBarStyle.Render(strings.Repeat(" ", padding))
-    }
-    return bar
-}
-
-func (w *Warp) renderVerticalTabBar(_ int) string {
-    tabs := w.tabs
-    activeIdx := w.activeTab
-    w.tabRegions = nil
-    w.newTabRegion = nil
-
-    var lines []string
-    maxW := 0
-    for i, tab := range tabs {
-        name := tab.name
-        if len(name) > 15 {
-            name = name[:12] + "..."
-        }
-        label := fmt.Sprintf(" %s ", name)
-        if i == activeIdx {
-            label = fmt.Sprintf("▎ %s ×", name)
-        }
-
-        labelW := lipgloss.Width(label)
-        if labelW > maxW {
-            maxW = labelW
-        }
-
-        w.tabRegions = append(w.tabRegions, tabRegion{
-            idx: i, startX: 0, endX: labelW, closeX: labelW - 1,
-        })
-
-        style := inactiveTabStyle
-        if i == activeIdx {
-            style = activeTabStyle
-        }
-        lines = append(lines, style.Render(padRight(label, maxW)))
-    }
-
-    // + button
-    newLabel := " + "
-    w.tabRegions = append(w.tabRegions, tabRegion{
-        idx: -1, startX: 0, endX: lipgloss.Width(newLabel),
-    })
-    lines = append(lines, newTabStyle.Render(padRight(newLabel, maxW)))
-
-    w.verticalTabWidth = maxW
-    return strings.Join(lines, "\n")
-}
-
-func padRight(s string, w int) string {
-    lw := lipgloss.Width(s)
-    if lw < w {
-        return s + strings.Repeat(" ", w-lw)
-    }
-    return s
 }
 
 // emptyPanel is used as a placeholder when a tab has no user panels yet.

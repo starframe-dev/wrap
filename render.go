@@ -255,6 +255,7 @@ func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string {
 }
 
 // padContent ensures content has exactly w×h dimensions.
+// Truncates by visual width (not bytes) to avoid breaking UTF-8 or ANSI sequences.
 func padContent(content string, w, h int) []string {
     lines := strings.Split(content, "\n")
     result := make([]string, h)
@@ -268,11 +269,47 @@ func padContent(content string, w, h int) []string {
         if lineW < w {
             line += strings.Repeat(" ", w-lineW)
         } else if lineW > w {
-            line = line[:w]
+            line = truncateVisual(line, w)
         }
         result[y] = line
     }
     return result
+}
+
+// truncateVisual truncates a string to at most w visual columns.
+// It never breaks UTF-8 runes or ANSI escape sequences.
+func truncateVisual(s string, w int) string {
+    if w <= 0 {
+        return ""
+    }
+    var buf strings.Builder
+    vis := 0
+    inEsc := false
+    for i := 0; i < len(s); i++ {
+        b := s[i]
+        if inEsc {
+            buf.WriteByte(b)
+            if b >= 0x40 && b <= 0x7E {
+                inEsc = false
+            }
+            continue
+        }
+        if b == '\x1b' {
+            buf.WriteByte(b)
+            inEsc = true
+            continue
+        }
+        if vis >= w {
+            break
+        }
+        buf.WriteByte(b)
+        // UTF-8 lead byte check: if high bit is set, this is a multi-byte rune.
+        // We count it as one visual column regardless of byte length.
+        if b < 0x80 || (b&0xC0) != 0x80 {
+            vis++
+        }
+    }
+    return buf.String()
 }
 
 func makeEmptyLines(w, h int) []string {
