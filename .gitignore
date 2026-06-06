@@ -1,0 +1,24 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+/tmp/
+/cmd/demo/demo
+
+# Test binary
+*.test
+
+# Output of go coverage
+coverage.out
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
