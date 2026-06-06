@@ -207,6 +207,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
     my := msg.Y - offsetY
 
     // Check float panes first (top z-order)
+    hitFloat := false
     for i := len(t.floats) - 1; i >= 0; i-- {
         fp := t.floats[i]
         cmd := fp.handleMouse(msg, mx, my)
@@ -215,6 +216,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
             return nil
         }
         if cmd != nil {
+            hitFloat = true
             // Bring to top
             if msg.Action == tea.MouseActionPress {
                 t.floats = append(t.floats[:i], t.floats[i+1:]...)
@@ -222,6 +224,19 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
                 t.focused = fp.Panel
             }
             return cmd
+        }
+        // Check if click is inside this float (for outside-click detection)
+        if mx >= fp.X && mx < fp.X+fp.Width && my >= fp.Y && my < fp.Y+fp.Height {
+            hitFloat = true
+        }
+    }
+
+    // Close floats that want auto-close on outside click
+    if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && !hitFloat {
+        for i := len(t.floats) - 1; i >= 0; i-- {
+            if t.floats[i].CloseOnOutsideClick {
+                t.CloseFloat(t.floats[i])
+            }
         }
     }
 

@@ -1,6 +1,8 @@
 package warp
 
 import (
+	"encoding/base64"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -69,6 +71,22 @@ func (s *Selectable) SelectedText() string {
 func (s *Selectable) ClearSelection() {
 	s.HasSelection = false
 	s.Selecting = false
+}
+
+// Copy returns a tea.Cmd that copies the selected text to the system
+// clipboard via OSC 52. Call this when the user presses Ctrl+C.
+func (s *Selectable) Copy() tea.Cmd {
+	text := s.SelectedText()
+	if text == "" {
+		return nil
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	seq := fmt.Sprintf("\x1b]52;c;%s\x07", encoded)
+	return func() tea.Msg {
+		// OSC 52 works even in Bubbletea's alternate screen buffer
+		fmt.Print(seq)
+		return nil
+	}
 }
 
 // SelectAll selects all visible content.
@@ -175,7 +193,12 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		if !handled {
 			switch key {
 			case "ctrl+a":
+				s.SelectAll(9999, 9999)
 				handled = true
+			case "ctrl+c":
+				if s.HasSelection {
+					return s.Copy()
+				}
 			case "esc":
 				if s.HasSelection {
 					s.ClearSelection()

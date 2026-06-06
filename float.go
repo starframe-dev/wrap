@@ -28,6 +28,9 @@ type FloatPane struct {
     // CloseRequested is set when the user clicks the × button.
     // The owning Tab checks this after handleMouse and calls CloseFloat.
     CloseRequested bool
+
+    // CloseOnOutsideClick closes the float when the user clicks outside it.
+    CloseOnOutsideClick bool
 }
 
 const (

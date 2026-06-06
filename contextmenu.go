@@ -138,6 +138,7 @@ func (t *Tab) ShowContextMenu(items []ContextMenuItem, x, y int) *FloatPane {
 		Height: len(items) + 2,
 		Title:  "",
 	}
+	fp.CloseOnOutsideClick = true
 	t.floats = append(t.floats, fp)
 	return fp
 }
