@@ -774,6 +774,86 @@ func TestSpaceWrap(t *testing.T) {
 	}
 }
 
+func TestSelectableHighlight(t *testing.T) {
+	p := &testPanel{name: "hello world"}
+	s := NewSelectable(p)
+
+	// Select "world" on line 0, positions 6-11
+	s.AnchorX, s.AnchorY = 6, 0
+	s.CursorX, s.CursorY = 11, 0
+	s.HasSelection = true
+
+	rendered := s.View(20, 5)
+	lines := strings.Split(rendered, "\n")
+
+	if len(lines) != 5 {
+		t.Fatalf("expected 5 lines, got %d", len(lines))
+	}
+
+	// Line 0 should contain ANSI highlight codes
+	if !strings.Contains(lines[0], "\x1b[7m") {
+		t.Errorf("expected highlight ANSI code in line 0: %q", lines[0])
+	}
+
+	// Other lines should not have highlight
+	for i := 1; i < 5; i++ {
+		if strings.Contains(lines[i], "\x1b[7m") {
+			t.Errorf("line %d should not have highlight: %q", i, lines[i])
+		}
+	}
+}
+
+func TestSelectableMouseDrag(t *testing.T) {
+	p := &testPanel{name: "abcdef"}
+	s := NewSelectable(p)
+
+	// Press at (1, 0)
+	press := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 1, Y: 0}
+	s.Update(press)
+
+	if s.Selecting != true {
+		t.Error("expected Selecting to be true after press")
+	}
+
+	// Drag to (4, 0)
+	drag := tea.MouseMsg{Action: tea.MouseActionMotion, Button: tea.MouseButtonLeft, X: 4, Y: 0}
+	s.Update(drag)
+
+	if !s.HasSelection {
+		t.Error("expected HasSelection to be true after drag")
+	}
+
+	// Release
+	release := tea.MouseMsg{Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft, X: 4, Y: 0}
+	s.Update(release)
+
+	if s.Selecting {
+		t.Error("expected Selecting to be false after release")
+	}
+
+	// Check selected text — range [1, 4) = positions 1, 2, 3 = "bcd"
+	text := s.SelectedText()
+	if text != "bcd" {
+		t.Errorf("expected selected text 'bcd', got %q", text)
+	}
+}
+
+func TestSelectableClear(t *testing.T) {
+	p := &testPanel{name: "test"}
+	s := NewSelectable(p)
+	s.SelectAll(10, 5)
+
+	if !s.HasSelection {
+		t.Fatal("expected selection after SelectAll")
+	}
+
+	s.ClearSelection()
+
+	if s.HasSelection {
+		t.Error("expected no selection after ClearSelection")
+	}
+}
+
 func TestToggleCollapsible(t *testing.T) {
 	w := New()
 	w.width = 60

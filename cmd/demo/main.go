@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/Starframe/warp"
+	"github.com/starframe-dev/wrap"
 )
 
 // --- demoPanel — basic clickable panel ---
@@ -125,7 +125,8 @@ func main() {
 		"All interactions are fully mouse and keyboard driven. " +
 		"Have fun exploring! This text is intentionally long to demonstrate scrolling."
 	textContent := newTextPanel(longText, 40)
-	scroll := warp.NewScrollable(textContent)
+	selectableText := warp.NewSelectable(textContent)
+	scroll := warp.NewScrollable(selectableText)
 
 	dropdown := warp.NewDropdownMenu("Actions", []warp.DropdownItem{
 		{Label: "New File"},
