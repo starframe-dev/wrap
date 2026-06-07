@@ -210,6 +210,11 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
     hitFloat := false
     for i := len(t.floats) - 1; i >= 0; i-- {
         fp := t.floats[i]
+
+        // Detect if cursor is inside this float before calling handleMouse
+        // (handleMouse skips bounds check during active drag/resize)
+        inside := mx >= fp.X && mx < fp.X+fp.Width && my >= fp.Y && my < fp.Y+fp.Height
+
         cmd := fp.handleMouse(msg, mx, my)
         if fp.CloseRequested {
             t.CloseFloat(fp)
@@ -217,7 +222,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
         }
         if cmd != nil {
             hitFloat = true
-            // Bring to top
+            // Bring to top on press inside float content
             if msg.Action == tea.MouseActionPress {
                 t.floats = append(t.floats[:i], t.floats[i+1:]...)
                 t.floats = append(t.floats, fp)
@@ -225,9 +230,16 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
             }
             return cmd
         }
-        // Check if click is inside this float (for outside-click detection)
-        if mx >= fp.X && mx < fp.X+fp.Width && my >= fp.Y && my < fp.Y+fp.Height {
+        if inside {
             hitFloat = true
+            // Bring to top and consume the event when clicking inside
+            // (title bar drag, edge resize, or close button)
+            if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+                t.floats = append(t.floats[:i], t.floats[i+1:]...)
+                t.floats = append(t.floats, fp)
+                t.focused = fp.Panel
+            }
+            return nil
         }
     }
 

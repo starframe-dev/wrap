@@ -154,9 +154,15 @@ func main() {
 		{Panel: terminal, Grow: 1},
 	})
 
-	// Float panel: draggable, resizable, closable
-	float1 := &demoPanel{name: "Float #1 — drag title bar!"}
-	tab1.Float(float1, 8, 5, 26, 6)
+	// Float panels: draggable, resizable, closable, overlapping to show z-order
+	float1 := &demoPanel{name: "Float #1 — drag me!"}
+	tab1.Float(float1, 10, 4, 24, 6)
+
+	float2 := &demoPanel{name: "Float #2 — overlap!"}
+	tab1.Float(float2, 22, 7, 20, 5)
+
+	float3 := &demoPanel{name: "Float #3"}
+	tab1.Float(float3, 45, 2, 18, 4)
 
 	// ═══════════════════════════════════════════════════
 	// TAB 2: Nested tabs demo
@@ -181,6 +187,10 @@ func main() {
 		{Panel: bottom, Grow: 1},
 	})
 
+	// Float in columns tab
+	colFloat := &demoPanel{name: "Column Float"}
+	tab3.Float(colFloat, 5, 3, 22, 5)
+
 	// ═══════════════════════════════════════════════════
 	// TAB 4: Split panes demo
 	// ═══════════════════════════════════════════════════
@@ -190,6 +200,10 @@ func main() {
 
 	tab4.SplitVertical(tab4.RootPanel(), 0.5, topRight)
 	tab4.SplitHorizontal(topRight, 0.5, bottomPane)
+
+	// Float in splits tab
+	splitFloat := &demoPanel{name: "Split Float"}
+	tab4.Float(splitFloat, 15, 5, 20, 5)
 
 	if err := w.Run(); err != nil {
 		panic(err)
