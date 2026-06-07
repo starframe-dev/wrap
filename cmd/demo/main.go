@@ -75,7 +75,7 @@ func (p *textPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// --- statusPanel — shows current state ---
+// --- statusPanel ---
 
 type statusPanel struct {
 	msg string
@@ -99,31 +99,29 @@ func (p *statusPanel) Set(msg string) {
 }
 
 func main() {
-	status := &statusPanel{msg: "Welcome to Warp demo! Click things. Use mouse wheel to scroll. Ctrl+T=new tab, Ctrl+W=close tab, Ctrl+Tab=next tab"}
+	status := &statusPanel{msg: "Welcome! TabGroup is just a Panel — you can put it anywhere. Ctrl+T=new tab, Ctrl+W=close, Ctrl+Tab=next"}
 
 	w := warp.New()
 	w.SetTabPosition(warp.TabTop)
 
 	// ═══════════════════════════════════════════════════
-	// TAB 1: Masterpiece — all features in one tab
+	// TAB 1: Flex + TabGroup INSIDE flex (tabs are local!)
 	// ═══════════════════════════════════════════════════
 	tab1 := w.ActiveTab()
 
-	// Middle area: 4-column flex with collapsible, scrollable, dropdown, terminal
+	// A TabGroup as a LOCAL component inside the flex layout
+	localTabs := warp.NewTabGroup(warp.TabLeft)
+	localTabs.NewTab("local-a")
+	localTabs.NewTab("local-b")
+	// Put some content in local tabs
+	localTabs.ActiveTab().SplitVertical(localTabs.ActiveTab().RootPanel(), 0.5, &demoPanel{name: "Local Right"})
+
 	explorer := warp.NewCollapsible("Explorer", &demoPanel{name: "File Tree"})
 
-	longText := "This is a demonstration of word wrapping in Warp. " +
-		"The text should flow naturally and wrap at word boundaries without breaking mid-word. " +
-		"You can scroll this panel with your mouse wheel or arrow keys. " +
-		"Warp supports tabs, splits, floating panels, flex layouts, collapsible sections, " +
-		"dropdown menus, context menus, and mouse-driven interactions. " +
-		"Everything is rendered with beautiful Gruvbox Dark colors. " +
-		"Try dragging the borders between panels to resize them. " +
-		"Try clicking the float panels to drag them around. " +
-		"Try collapsing the Explorer and Terminal panels. " +
-		"The library is built on Bubbletea and Lipgloss for a modern TUI experience. " +
-		"All interactions are fully mouse and keyboard driven. " +
-		"Have fun exploring! This text is intentionally long to demonstrate scrolling."
+	longText := "This demonstrates that TabGroup is just a Panel component. " +
+		"You can embed it inside splits, flex layouts, or anywhere else. " +
+		"It is NOT global — each TabGroup manages its own set of tabs independently. " +
+		"The root warp has its own tabs, and this local TabGroup has its own."
 	textContent := newTextPanel(longText, 40)
 	selectableText := warp.NewSelectable(textContent)
 	scroll := warp.NewScrollable(selectableText)
@@ -132,78 +130,64 @@ func main() {
 		{Label: "New File"},
 		{Label: "Open..."},
 		{Label: "Save"},
-		{Label: "Save As..."},
 		{Label: "Exit"},
 	})
 	dropdown.OnSelect = func(idx int) {
-		status.Set(fmt.Sprintf("Dropdown selected: %s", dropdown.Items[idx].Label))
+		status.Set(fmt.Sprintf("Dropdown: %s", dropdown.Items[idx].Label))
 	}
 
 	terminal := warp.NewCollapsible("Terminal", &demoPanel{name: "Shell"})
 
-	// Build flex row for the 3 middle columns
-	midRow := warp.NewCollapsible("", nil)
+	// Flex row: local TabGroup | Explorer | Scrollable | Dropdown | Terminal
 	tab1.FlexRow(tab1.RootPanel(), []warp.FlexItemSpec{
-		{Panel: midRow, Grow: 1},
-	})
-	// Replace the dummy with actual flex row
-	tab1.FlexRow(midRow, []warp.FlexItemSpec{
+		{Panel: localTabs, Grow: 2},     // ← TabGroup inside flex!
 		{Panel: explorer, Grow: 1},
 		{Panel: scroll, Grow: 2},
 		{Panel: dropdown, Grow: 1},
 		{Panel: terminal, Grow: 1},
 	})
 
-	// Float panels: draggable, resizable, closable, overlapping to show z-order
-	float1 := &demoPanel{name: "Float #1 — drag me!"}
-	tab1.Float(float1, 10, 4, 24, 6)
-
-	float2 := &demoPanel{name: "Float #2 — overlap!"}
-	tab1.Float(float2, 22, 7, 20, 5)
-
-	float3 := &demoPanel{name: "Float #3"}
-	tab1.Float(float3, 45, 2, 18, 4)
+	// Overlapping floats
+	tab1.Float(&demoPanel{name: "Float #1"}, 10, 4, 24, 6)
+	tab1.Float(&demoPanel{name: "Float #2"}, 22, 7, 20, 5)
+	tab1.Float(&demoPanel{name: "Float #3"}, 45, 2, 18, 4)
 
 	// ═══════════════════════════════════════════════════
-	// TAB 2: Nested tabs demo
+	// TAB 2: TabGroup with TabBottom inside a split
 	// ═══════════════════════════════════════════════════
-	tab2 := w.NewTab("nested")
-	inner := warp.New()
-	inner.NewTab("inner-code")
-	inner.NewTab("inner-debug")
-	inner.ActiveTab().Float(&demoPanel{name: "Nested Float"}, 3, 2, 18, 5)
+	tab2 := w.NewTab("bottom-tabs")
 
-	tab2.SplitVertical(tab2.RootPanel(), 0.4, inner.AsPanel())
-	tab2.SplitVertical(tab2.RootPanel(), 0.5, &demoPanel{name: "Side Panel"})
+	bottomTabs := warp.NewTabGroup(warp.TabBottom)
+	bottomTabs.NewTab("btm-1")
+	bottomTabs.NewTab("btm-2")
+	bottomTabs.ActiveTab().SplitHorizontal(bottomTabs.ActiveTab().RootPanel(), 0.5, &demoPanel{name: "Bottom Content"})
+
+	tab2.SplitVertical(tab2.RootPanel(), 0.5, bottomTabs) // ← TabGroup as split child
+	tab2.SplitVertical(tab2.RootPanel(), 0.5, &demoPanel{name: "Side"})
 
 	// ═══════════════════════════════════════════════════
-	// TAB 3: Column layout with collapsible
+	// TAB 3: TabGroup with TabRight inside flex column
 	// ═══════════════════════════════════════════════════
-	tab3 := w.NewTab("columns")
-	output := warp.NewCollapsible("Build Output", &demoPanel{name: "Compiler output here"})
-	bottom := &demoPanel{name: "Bottom Panel — click me!"}
+	tab3 := w.NewTab("right-tabs")
+
+	rightTabs := warp.NewTabGroup(warp.TabRight)
+	rightTabs.NewTab("rt-1")
+	rightTabs.NewTab("rt-2")
+	rightTabs.NewTab("rt-3")
+	rightTabs.ActiveTab().Float(&demoPanel{name: "Right Float"}, 3, 2, 16, 4)
+
 	tab3.FlexColumn(tab3.RootPanel(), []warp.FlexItemSpec{
-		{Panel: output, Grow: 1},
-		{Panel: bottom, Grow: 1},
+		{Panel: rightTabs, Grow: 1}, // ← TabGroup in column
+		{Panel: &demoPanel{name: "Below"}, Grow: 1},
 	})
 
-	// Float in columns tab
-	colFloat := &demoPanel{name: "Column Float"}
-	tab3.Float(colFloat, 5, 3, 22, 5)
-
 	// ═══════════════════════════════════════════════════
-	// TAB 4: Split panes demo
+	// TAB 4: Classic splits (no tabs inside)
 	// ═══════════════════════════════════════════════════
 	tab4 := w.NewTab("splits")
 	topRight := &demoPanel{name: "Top Right"}
-	bottomPane := &demoPanel{name: "Bottom Pane"}
-
 	tab4.SplitVertical(tab4.RootPanel(), 0.5, topRight)
-	tab4.SplitHorizontal(topRight, 0.5, bottomPane)
-
-	// Float in splits tab
-	splitFloat := &demoPanel{name: "Split Float"}
-	tab4.Float(splitFloat, 15, 5, 20, 5)
+	tab4.SplitHorizontal(topRight, 0.5, &demoPanel{name: "Bottom"})
 
 	if err := w.Run(); err != nil {
 		panic(err)

@@ -52,6 +52,12 @@ func (t *Tab) RootPanel() Panel {
     return t.root.Panel
 }
 
+// SetRootPanel replaces the root panel of this tab.
+func (t *Tab) SetRootPanel(panel Panel) {
+    t.ensureRoot()
+    t.root.Panel = panel
+}
+
 // SplitVertical splits the panel vertically (left/right).
 // fraction is the share for the left panel (0.0–1.0).
 func (t *Tab) SplitVertical(parent Panel, fraction float64, newPanel Panel) {
